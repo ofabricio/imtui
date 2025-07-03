@@ -118,17 +118,7 @@ func (t *ImTui) Toggle(label string, toggle *bool) bool {
 // The toggle is a boolean pointer that will be toggled when the checkbox is clicked.
 // Returns true if the checkbox was clicked.
 func (t *ImTui) Check(label string, toggle *bool) bool {
-	check := "[ ] "
-	a := t.textArea(label)
-	a.x2 += len(check)
-	clicked := t.toggle(a, toggle)
-	if *toggle {
-		check = "[X] "
-	}
-	s := t.toggleStyle(a, *toggle)
-	t.fillText(check, s)
-	t.fillText(label, s)
-	return clicked
+	return t.check("[X] ", "[ ] ", label, toggle)
 }
 
 // Radio creates a radio button with the given label.
@@ -137,7 +127,7 @@ func (t *ImTui) Check(label string, toggle *bool) bool {
 // Returns true if the radio button was clicked.
 func (t *ImTui) Radio(label string, id int, radio *int) bool {
 	toggle := *radio == id
-	if t.Check(label, &toggle) {
+	if t.check("(0) ", "( ) ", label, &toggle) {
 		if toggle {
 			*radio = id
 		} else {
@@ -154,6 +144,20 @@ func (t *ImTui) Text(text string) bool {
 	a := t.textArea(text)
 	t.fillText(text, t.Style.Text)
 	return t.mouse.PressedIn(a)
+}
+
+func (t *ImTui) check(on, off, label string, toggle *bool) bool {
+	a := t.textArea(label)
+	a.x2 += len(on)
+	clicked := t.toggle(a, toggle)
+	check := off
+	if *toggle {
+		check = on
+	}
+	s := t.toggleStyle(a, *toggle)
+	t.fillText(check, s)
+	t.fillText(label, s)
+	return clicked
 }
 
 func (t *ImTui) toggle(a area, toggle *bool) bool {
