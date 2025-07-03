@@ -47,16 +47,12 @@ func (t *ImTui) Loop() iter.Seq[int] {
 	}
 
 	scr.SetStyle(t.Style.Background)
-
 	scr.EnableMouse()
 
 	evtCh := make(chan tcell.Event)
 	go scr.ChannelEvents(evtCh, nil)
 
 	return func(yield func(int) bool) {
-		var mx, my, lmx, lmy int     // Mouse xy, and last mouse x, y.
-		var btn1, lbtn1 bool         // Pressed button1 and last pressed button1.
-		var pressed tcell.ButtonMask // Current pressed buttons.
 		for {
 			select {
 			case ev := <-evtCh:
@@ -72,59 +68,61 @@ func (t *ImTui) Loop() iter.Seq[int] {
 					}
 
 				case *tcell.EventMouse:
-					mx, my = ev.Position()
-					pressed = ev.Buttons()
-					switch pressed {
-					case tcell.Button1:
-						btn1 = true
-					case tcell.ButtonNone:
-						btn1 = false
+					mx, my := ev.Position()
+					pressed := ev.Buttons()
+					t.mouse.x, t.mouse.y = mx, my
+					t.mouse.moved = t.mouse.x != t.mouse.lx || t.mouse.y != t.mouse.ly
+					t.mouse.pressed = pressed
+					if t.mouse.IsButton1DownOnce() {
+						t.mouse.down = cursor{t.mouse.x, t.mouse.y}
 					}
 				}
 			case <-time.After(60 * time.Millisecond):
 			}
 
-			// Begin()
-			t.mouse.x = mx
-			t.mouse.y = my
-			t.mouse.lx, t.mouse.ly = lmx, lmy
-			t.mouse.moved = mx != lmx || my != lmy
-			t.mouse.pressed = pressed
-			t.mouse.btn1 = btn1 != lbtn1
-			if t.mouse.IsButton1DownOnce() {
-				t.mouse.down = cursor{mx, my}
-			}
 			t.cur = cursor{}
 
 			scr.Clear()
 			if !yield(0) {
+				scr.Fini()
 				return
 			}
 			scr.Show()
 
 			// Save current values for tests in the next frames.
-			lmx, lmy = mx, my
-			lbtn1 = btn1
+			t.mouse.lx, t.mouse.ly = t.mouse.x, t.mouse.y
+			t.mouse.lpressed = t.mouse.pressed
 		}
 	}
 }
 
+// Button creates a button with the given label.
+// Returns true if the button was clicked.
 func (t *ImTui) Button(label string) bool {
-	v := utf8.RuneCountInString(label)
-	r := rect{t.cur.x, t.cur.y, v, 1}
+	r := rect{t.cur.x, t.cur.y, t.chars(label), 1}
 	t.text(label, t.buttonStyle(r))
 	return t.mouse.PressedIn(r)
 }
 
+// Toggle creates a toggle button with the given label.
+// The toggle is a boolean pointer that will be toggled when the button is clicked.
+// Returns true if the toggle was clicked.
 func (t *ImTui) Toggle(label string, toggle *bool) bool {
-	v := utf8.RuneCountInString(label)
-	r := rect{t.cur.x, t.cur.y, v, 1}
+	r := rect{t.cur.x, t.cur.y, t.chars(label), 1}
 	clicked := t.mouse.PressedIn(r)
 	if clicked {
 		*toggle = !*toggle
 	}
 	t.text(label, t.toggleStyle(r, *toggle))
 	return clicked
+}
+
+// Text creates a text label with the given text.
+// Returns true if the mouse was pressed inside the text area.
+func (t *ImTui) Text(text string) bool {
+	r := rect{t.cur.x, t.cur.y, t.chars(text), 1}
+	t.text(text, t.Style.Text)
+	return t.mouse.PressedIn(r)
 }
 
 func (t *ImTui) buttonStyle(r rect) tcell.Style {
@@ -153,11 +151,8 @@ func (t *ImTui) toggleStyle(r rect, toggled bool) tcell.Style {
 	}
 }
 
-func (t *ImTui) Text(text string) bool {
-	v := utf8.RuneCountInString(text)
-	r := rect{t.cur.x, t.cur.y, v, 1}
-	t.text(text, t.Style.Text)
-	return t.mouse.PressedIn(r)
+func (t *ImTui) chars(text string) int {
+	return utf8.RuneCountInString(text)
 }
 
 type widget struct {
@@ -166,11 +161,19 @@ type widget struct {
 	clicked bool
 }
 
+// Move moves the cursor to a given position.
 func (t *ImTui) Move(x, y int) {
 	t.cur.x = x
 	t.cur.y = y
 }
 
+// MoveRel moves the cursor relative to its current position.
+func (t *ImTui) MoveRel(x, y int) {
+	t.cur.x += x
+	t.cur.y += y
+}
+
+// Break moves the cursor to the next line and resets the x position.
 func (t *ImTui) Break() {
 	t.cur.x = 0
 	t.cur.y++
@@ -188,11 +191,13 @@ type cursor struct {
 }
 
 type mouse struct {
-	x, y    int
-	lx, ly  int // Last mouse x, y used to detect mouse movement.
-	pressed tcell.ButtonMask
-	btn1    bool // Signals changes to Button1.
-	moved   bool
+	x, y   int
+	lx, ly int // Last mouse x, y used to detect mouse movement.
+
+	moved bool // Tells if the mouse was moved in the last frame.
+
+	pressed  tcell.ButtonMask // Current mouse button pressed.
+	lpressed tcell.ButtonMask // Last mouse button pressed used to detect mouse button changes.
 
 	down cursor // Position where the mouse was pressed down.
 }
@@ -210,24 +215,19 @@ func (m mouse) IsButton1Down() bool {
 }
 
 func (m mouse) IsButton1DownOnce() bool {
-	return m.pressed == tcell.Button1 && m.btn1
+	return m.pressed == tcell.Button1 && m.IsButtonChanged()
 }
 
 // IsButton1UpOnce tells if the Button1 was pressed and is now released.
 // Returns true only in a single frame.
 func (m mouse) IsButton1UpOnce() bool {
-	return m.pressed != tcell.Button1 && m.btn1
+	return m.pressed != tcell.Button1 && m.IsButtonChanged()
 }
 
-// In tells if the mouse is inside a given rectangle.
-func (m mouse) In(r rect) bool {
-	return r.Contains(m.x, m.y)
-}
-
-// Still tells if the mouse is still.
-// A mouse is still if it was pressed down and up in the same place.
-func (m mouse) Still() bool {
-	return !m.Dragged()
+// IsButtonChanged tells if the mouse button state changed.
+// Returns true only in a single frame.
+func (m mouse) IsButtonChanged() bool {
+	return m.lpressed != m.pressed
 }
 
 // Dragged tells if the mouse was dragged.
@@ -235,6 +235,11 @@ func (m mouse) Still() bool {
 // to a different position.
 func (m mouse) Dragged() bool {
 	return m.down.x != m.x || m.down.y != m.y
+}
+
+// In tells if the mouse is inside a given rectangle.
+func (m mouse) In(r rect) bool {
+	return r.Contains(m.x, m.y)
 }
 
 // PressedIn tells if the mouse was pressed down and up
