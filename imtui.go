@@ -99,7 +99,7 @@ func (t *ImTui) Loop() iter.Seq[int] {
 // Button creates a button with the given label.
 // Returns true if the button was clicked.
 func (t *ImTui) Button(label string) bool {
-	r := rect{t.cur.x, t.cur.y, t.chars(label), 1}
+	r := t.textRect(label)
 	t.text(label, t.buttonStyle(r))
 	return t.mouse.PressedIn(r)
 }
@@ -108,21 +108,64 @@ func (t *ImTui) Button(label string) bool {
 // The toggle is a boolean pointer that will be toggled when the button is clicked.
 // Returns true if the toggle was clicked.
 func (t *ImTui) Toggle(label string, toggle *bool) bool {
-	r := rect{t.cur.x, t.cur.y, t.chars(label), 1}
-	clicked := t.mouse.PressedIn(r)
-	if clicked {
-		*toggle = !*toggle
-	}
+	r := t.textRect(label)
+	clicked := t.toggle(r, toggle)
 	t.text(label, t.toggleStyle(r, *toggle))
 	return clicked
+}
+
+// Check creates a checkbox with the given label.
+// The toggle is a boolean pointer that will be toggled when the checkbox is clicked.
+// Returns true if the checkbox was clicked.
+func (t *ImTui) Check(label string, toggle *bool) bool {
+	check := "[ ] "
+	r := t.textRect(label)
+	r.w += len(check)
+	clicked := t.toggle(r, toggle)
+	if *toggle {
+		check = "[X] "
+	}
+	s := t.toggleStyle(r, *toggle)
+	t.text(check, s)
+	t.text(label, s)
+	return clicked
+}
+
+// Radio creates a radio button with the given label.
+// The id is the unique identifier for the radio button.
+// The radio is set to the id when the radio button is clicked.
+// Returns true if the radio button was clicked.
+func (t *ImTui) Radio(label string, id int, radio *int) bool {
+	toggle := *radio == id
+	if t.Check(label, &toggle) {
+		if toggle {
+			*radio = id
+		} else {
+			*radio = -1
+		}
+		return true
+	}
+	return false
 }
 
 // Text creates a text label with the given text.
 // Returns true if the mouse was pressed inside the text area.
 func (t *ImTui) Text(text string) bool {
-	r := rect{t.cur.x, t.cur.y, t.chars(text), 1}
+	r := t.textRect(text)
 	t.text(text, t.Style.Text)
 	return t.mouse.PressedIn(r)
+}
+
+func (t *ImTui) toggle(r rect, toggle *bool) bool {
+	clicked := t.mouse.PressedIn(r)
+	if clicked {
+		*toggle = !*toggle
+	}
+	return clicked
+}
+
+func (t *ImTui) textRect(text string) rect {
+	return rect{t.cur.x, t.cur.y, t.chars(text), 1}
 }
 
 func (t *ImTui) buttonStyle(r rect) tcell.Style {

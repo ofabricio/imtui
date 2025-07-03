@@ -26,3 +26,66 @@ func main() {
 ```
 
 ![Output](/.github/output.png)
+
+## Documentation
+
+### Text
+
+```go
+for range tui.Loop() {
+
+    tui.Text("Hello, World!")
+}
+```
+
+### Button
+
+```go
+var clicks int
+for range tui.Loop() {
+
+    if tui.Button(" Click! ") {
+        clicks++
+    }
+
+    tui.Text(fmt.Sprintf(" Button clicked %d times ", clicks))
+}
+```
+
+### Toggle Button
+
+```go
+var toggle bool
+for range tui.Loop() {
+
+    if tui.Toggle(" Expand ", &toggle); toggle {
+        tui.Text(" Hello! ")
+    }
+}
+```
+
+### Checkbox
+
+```go
+var one, two bool
+for range tui.Loop() {
+
+    tui.Check("One", &one)
+    tui.Check("Two", &two)
+
+    tui.Text(fmt.Sprintf(" One is %t; Two is %t ", one, two))
+}
+```
+
+### Radio button
+
+```go
+var opt int = -1
+for range tui.Loop() {
+
+    tui.Radio("One", 0, &opt)
+    tui.Radio("Two", 1, &opt)
+
+    tui.Text(fmt.Sprintf(" Item selected: %v ", opt))
+}
+```
