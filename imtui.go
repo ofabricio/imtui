@@ -99,18 +99,18 @@ func (t *ImTui) Loop() iter.Seq[int] {
 // Button creates a button with the given label.
 // Returns true if the button was clicked.
 func (t *ImTui) Button(label string) bool {
-	r := t.textRect(label)
-	t.text(label, t.buttonStyle(r))
-	return t.mouse.PressedIn(r)
+	a := t.textArea(label)
+	t.fillText(label, t.buttonStyle(a))
+	return t.mouse.PressedIn(a)
 }
 
 // Toggle creates a toggle button with the given label.
 // The toggle is a boolean pointer that will be toggled when the button is clicked.
 // Returns true if the toggle was clicked.
 func (t *ImTui) Toggle(label string, toggle *bool) bool {
-	r := t.textRect(label)
-	clicked := t.toggle(r, toggle)
-	t.text(label, t.toggleStyle(r, *toggle))
+	a := t.textArea(label)
+	clicked := t.toggle(a, toggle)
+	t.fillText(label, t.toggleStyle(a, *toggle))
 	return clicked
 }
 
@@ -119,15 +119,15 @@ func (t *ImTui) Toggle(label string, toggle *bool) bool {
 // Returns true if the checkbox was clicked.
 func (t *ImTui) Check(label string, toggle *bool) bool {
 	check := "[ ] "
-	r := t.textRect(label)
-	r.w += len(check)
-	clicked := t.toggle(r, toggle)
+	a := t.textArea(label)
+	a.x2 += len(check)
+	clicked := t.toggle(a, toggle)
 	if *toggle {
 		check = "[X] "
 	}
-	s := t.toggleStyle(r, *toggle)
-	t.text(check, s)
-	t.text(label, s)
+	s := t.toggleStyle(a, *toggle)
+	t.fillText(check, s)
+	t.fillText(label, s)
 	return clicked
 }
 
@@ -151,25 +151,25 @@ func (t *ImTui) Radio(label string, id int, radio *int) bool {
 // Text creates a text label with the given text.
 // Returns true if the mouse was pressed inside the text area.
 func (t *ImTui) Text(text string) bool {
-	r := t.textRect(text)
-	t.text(text, t.Style.Text)
-	return t.mouse.PressedIn(r)
+	a := t.textArea(text)
+	t.fillText(text, t.Style.Text)
+	return t.mouse.PressedIn(a)
 }
 
-func (t *ImTui) toggle(r rect, toggle *bool) bool {
-	clicked := t.mouse.PressedIn(r)
+func (t *ImTui) toggle(a area, toggle *bool) bool {
+	clicked := t.mouse.PressedIn(a)
 	if clicked {
 		*toggle = !*toggle
 	}
 	return clicked
 }
 
-func (t *ImTui) textRect(text string) rect {
-	return rect{t.cur.x, t.cur.y, t.chars(text), 1}
+func (t *ImTui) textArea(text string) area {
+	return area{t.cur.x, t.cur.y, t.cur.x + t.chars(text) - 1, t.cur.y}
 }
 
-func (t *ImTui) buttonStyle(r rect) tcell.Style {
-	over := t.mouse.In(r)
+func (t *ImTui) buttonStyle(a area) tcell.Style {
+	over := t.mouse.In(a)
 	down := t.mouse.IsButton1Down()
 	switch {
 	case over && down:
@@ -181,8 +181,8 @@ func (t *ImTui) buttonStyle(r rect) tcell.Style {
 	}
 }
 
-func (t *ImTui) toggleStyle(r rect, toggled bool) tcell.Style {
-	over := t.mouse.In(r)
+func (t *ImTui) toggleStyle(a area, toggled bool) tcell.Style {
+	over := t.mouse.In(a)
 	down := t.mouse.IsButton1Down()
 	switch {
 	case over && down || over && toggled:
@@ -196,12 +196,6 @@ func (t *ImTui) toggleStyle(r rect, toggled bool) tcell.Style {
 
 func (t *ImTui) chars(text string) int {
 	return utf8.RuneCountInString(text)
-}
-
-type widget struct {
-	rect    rect
-	hover   bool
-	clicked bool
 }
 
 // Move moves the cursor to a given position.
@@ -222,10 +216,18 @@ func (t *ImTui) Break() {
 	t.cur.y++
 }
 
-func (t *ImTui) text(text string, style tcell.Style) {
+func (t *ImTui) fillText(text string, s tcell.Style) {
 	for _, r := range text {
+		t.scrn.SetContent(t.cur.x, t.cur.y, r, nil, s)
 		t.cur.x++
-		t.scrn.SetContent(t.cur.x, t.cur.y, r, nil, style)
+	}
+}
+
+func (t *ImTui) fill(a area, s tcell.Style) {
+	for y := a.y1; y < a.y2; y++ {
+		for x := a.x1; x < a.x2; x++ {
+			t.scrn.SetContent(x, y, ' ', nil, s)
+		}
 	}
 }
 
@@ -245,12 +247,12 @@ type mouse struct {
 	down cursor // Position where the mouse was pressed down.
 }
 
-func (m mouse) Entered(r rect) bool {
-	return r.Contains(m.x, m.y) && !r.Contains(m.lx, m.ly)
+func (m mouse) Entered(a area) bool {
+	return a.Contains(m.x, m.y) && !a.Contains(m.lx, m.ly)
 }
 
-func (m mouse) Exited(r rect) bool {
-	return !r.Contains(m.x, m.y) && r.Contains(m.lx, m.ly)
+func (m mouse) Exited(a area) bool {
+	return !a.Contains(m.x, m.y) && a.Contains(m.lx, m.ly)
 }
 
 func (m mouse) IsButton1Down() bool {
@@ -281,21 +283,21 @@ func (m mouse) Dragged() bool {
 }
 
 // In tells if the mouse is inside a given rectangle.
-func (m mouse) In(r rect) bool {
-	return r.Contains(m.x, m.y)
+func (m mouse) In(a area) bool {
+	return a.Contains(m.x, m.y)
 }
 
 // PressedIn tells if the mouse was pressed down and up
 // inside a given rectangle.
-func (m mouse) PressedIn(r rect) bool {
-	return m.IsButton1UpOnce() && r.Contains(m.x, m.y) && r.Contains(m.down.x, m.down.y)
+func (m mouse) PressedIn(a area) bool {
+	return m.IsButton1UpOnce() && a.Contains(m.x, m.y) && a.Contains(m.down.x, m.down.y)
 }
 
-type rect struct {
-	x, y int
-	w, h int
+type area struct {
+	x1, y1 int
+	x2, y2 int
 }
 
-func (r rect) Contains(x, y int) bool {
-	return x > r.x && x <= r.x+r.w && y >= r.y && y < r.y+r.h
+func (a area) Contains(x, y int) bool {
+	return x >= a.x1 && x <= a.x2 && y >= a.y1 && y <= a.y2
 }
