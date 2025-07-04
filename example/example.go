@@ -10,10 +10,12 @@ func main() {
 
 	tui := imtui.New()
 
-	var one, two bool
-	var radio int = -1
 	var clicks int
 	var toggle bool
+	var toggler bool
+	var one, two bool
+	var radio int = -1
+
 	for range tui.Loop() {
 
 		if tui.Button(" Button ") {
@@ -27,13 +29,18 @@ func main() {
 		}
 
 		tui.Break()
-		tui.Radio("One ", 0, &radio)
-		tui.Radio("Two ", 1, &radio)
-		tui.Text(fmt.Sprintf(" Selected: %v ", radio))
+		if tui.Toggler("(0 )", "( 0)", "", &toggler); toggler {
+			tui.Text(" Toggled ")
+		}
 
 		tui.Break()
 		tui.Check("One ", &one)
 		tui.Check("Two ", &two)
 		tui.Text(fmt.Sprintf(" One: %v, Two: %v ", one, two))
+
+		tui.Break()
+		tui.Radio("One ", 0, &radio)
+		tui.Radio("Two ", 1, &radio)
+		tui.Text(fmt.Sprintf(" Selected: %v ", radio))
 	}
 }
