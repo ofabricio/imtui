@@ -220,6 +220,10 @@ func (t *ImTui) Break() {
 	t.cur.y++
 }
 
+func (t *ImTui) Size() (w, h int) {
+	return t.scrn.Size()
+}
+
 func (t *ImTui) fillText(text string, s tcell.Style) {
 	for _, r := range text {
 		t.scrn.SetContent(t.cur.x, t.cur.y, r, nil, s)
