@@ -13,14 +13,14 @@ func main() {
 
     tui := imtui.New()
 
-    var v int
+    var clicks int
     for range tui.Loop() {
 
         if tui.Button(" Click! ") {
-            v++
+            clicks++
         }
 
-        tui.Text(fmt.Sprintf(" Button clicked %d times ", v))
+        tui.Text(fmt.Sprintf(" Button clicked %d times ", clicks))
     }
 }
 ```
