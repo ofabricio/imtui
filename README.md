@@ -27,7 +27,7 @@ func main() {
 
 ## Demo
 
-This demo is from the example in [example/example.go](example/demo.go).
+This demo is from the example in [example/demo.go](example/demo.go).
 
 <p align="center">
   <img src="/.github/demo.gif" />
@@ -76,8 +76,8 @@ for range tui.Loop() {
 var one, two bool
 for range tui.Loop() {
 
-    tui.Check("One", &one)
-    tui.Check("Two", &two)
+    tui.Check("One ", &one)
+    tui.Check("Two ", &two)
 
     tui.Text(fmt.Sprintf(" One is %t; Two is %t ", one, two))
 }
@@ -89,8 +89,8 @@ for range tui.Loop() {
 var opt int = -1
 for range tui.Loop() {
 
-    tui.Radio("One", 0, &opt)
-    tui.Radio("Two", 1, &opt)
+    tui.Radio("One ", 0, &opt)
+    tui.Radio("Two ", 1, &opt)
 
     tui.Text(fmt.Sprintf(" Item selected: %v ", opt))
 }

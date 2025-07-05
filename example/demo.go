@@ -29,7 +29,7 @@ func main() {
 		}
 
 		tui.Break()
-		if tui.Toggler("(0 )", "( 0)", "", &toggler); toggler {
+		if tui.Toggler("█  ", "  █", "", &toggler); toggler {
 			tui.Text(" Toggled ")
 		}
 

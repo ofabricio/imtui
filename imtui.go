@@ -16,18 +16,15 @@ func New() ImTui {
 	t.Style.Active = tcell.StyleDefault.Background(tcell.NewHexColor(0x264f78)).Foreground(tcell.NewHexColor(0xffffff))
 	t.Style.OverActive = tcell.StyleDefault.Background(tcell.NewHexColor(0x1565c0)).Foreground(tcell.NewHexColor(0xffffff))
 	t.Style.Over = tcell.StyleDefault.Background(tcell.NewHexColor(0x1976d2)).Foreground(tcell.NewHexColor(0xffffff))
-	t.Style.Normal = tcell.StyleDefault.Background(tcell.NewHexColor(0x23272e)).Foreground(tcell.NewHexColor(0xffffff))
+	t.Style.Normal = tcell.StyleDefault.Background(tcell.NewHexColor(0x2c313a)).Foreground(tcell.NewHexColor(0xffffff))
 	return t
 }
 
 type ImTui struct {
 	Style styles
-	scrn  tcell.Screen
 	mouse mouse
 	cur   cursor
-
-	// NOTE: Maybe this should go to mouse struct? If so, ImTui.mouseStates() can become mouse.states().
-	active delta[int]
+	scr   tcell.Screen
 }
 
 type styles struct {
@@ -45,16 +42,16 @@ func (t *ImTui) Loop() iter.Seq[int] {
 	if err != nil {
 		panic(err)
 	}
-	t.scrn = scr
 	if err := scr.Init(); err != nil {
 		panic(err)
 	}
+	t.scr = scr
 
-	scr.SetStyle(t.Style.Background)
-	scr.EnableMouse()
+	t.scr.SetStyle(t.Style.Background)
+	t.scr.EnableMouse()
 
 	evtCh := make(chan tcell.Event)
-	go scr.ChannelEvents(evtCh, nil)
+	go t.scr.ChannelEvents(evtCh, nil)
 
 	return func(yield func(int) bool) {
 
@@ -67,12 +64,12 @@ func (t *ImTui) Loop() iter.Seq[int] {
 			case ev := <-evtCh:
 				switch ev := ev.(type) {
 				case *tcell.EventResize:
-					scr.Sync()
+					t.scr.Sync()
 
 				case *tcell.EventKey:
 					switch ev.Key() {
 					case tcell.KeyCtrlC, tcell.KeyEscape:
-						scr.Fini()
+						t.scr.Fini()
 						return
 					}
 
@@ -86,19 +83,16 @@ func (t *ImTui) Loop() iter.Seq[int] {
 
 			t.cur = cursor{}
 
-			scr.Clear()
+			t.scr.Clear()
 			if !yield(0) {
-				scr.Fini()
+				t.scr.Fini()
 				return
 			}
-			scr.Show()
+			t.scr.Show()
 
 			// Make current values as last values
 			// for change test in the next frame.
-			t.mouse.x.Swap()
-			t.mouse.y.Swap()
-			t.mouse.pressed.Swap()
-			t.active.Swap()
+			t.mouse.Swap()
 		}
 	}
 }
@@ -107,7 +101,7 @@ func (t *ImTui) Loop() iter.Seq[int] {
 // Returns true if the button was clicked.
 func (t *ImTui) Button(label string) bool {
 	a := t.textArea(label)
-	s := t.mouseStates(label, a)
+	s := t.mouse.State(label, a)
 	t.fillText(label, t.buttonStyle(s))
 	return s.clicked
 }
@@ -143,19 +137,11 @@ func (t *ImTui) Radio(label string, id int, radio *int) bool {
 	return false
 }
 
-// Text creates a text label with the given text.
-// Returns true if the mouse was pressed inside the text area.
-func (t *ImTui) Text(text string) bool {
-	a := t.textArea(text)
-	t.fillText(text, t.Style.Text)
-	return t.mouse.PressedIn(a)
-}
-
 // Toggler creates a toggle button that allows further customization.
 func (t *ImTui) Toggler(off, on, label string, toggle *bool) bool {
 	a := t.textArea(label)
 	a.x2 += len(off)
-	s := t.mouseStates(label, a)
+	s := t.mouse.State(label, a)
 	if s.clicked {
 		*toggle = !*toggle
 	}
@@ -169,11 +155,20 @@ func (t *ImTui) Toggler(off, on, label string, toggle *bool) bool {
 	return s.clicked
 }
 
+// Text creates a text label with the given text.
+// Returns true if the mouse was pressed inside the text area.
+func (t *ImTui) Text(text string) bool {
+	a := t.textArea(text)
+	s := t.mouse.State(text, a)
+	t.fillText(text, t.Style.Text)
+	return s.clicked
+}
+
 func (t *ImTui) textArea(text string) area {
 	return area{t.cur.x, t.cur.y, t.cur.x + t.chars(text) - 1, t.cur.y}
 }
 
-func (t *ImTui) buttonStyle(s mouseStates) tcell.Style {
+func (t *ImTui) buttonStyle(s mouseState) tcell.Style {
 	switch {
 	case s.down:
 		return t.Style.Active
@@ -184,11 +179,11 @@ func (t *ImTui) buttonStyle(s mouseStates) tcell.Style {
 	}
 }
 
-func (t *ImTui) toggleStyle(s mouseStates, toggled bool) tcell.Style {
+func (t *ImTui) toggleStyle(s mouseState, toggled bool) tcell.Style {
 	switch {
 	case s.down || toggled && !s.over:
 		return t.Style.Active
-	case toggled && s.over:
+	case s.over && toggled:
 		return t.Style.OverActive
 	case s.over:
 		return t.Style.Over
@@ -216,24 +211,12 @@ func (t *ImTui) Break() {
 }
 
 func (t *ImTui) Size() (w, h int) {
-	return t.scrn.Size()
-}
-
-func (t *ImTui) mouseStates(id string, a area) mouseStates {
-	var s mouseStates
-	if s.over = t.mouse.In(a); s.over {
-		t.active.curr = strID(id)
-		s.active = !t.active.Changed()
-		s.clicked = s.active && t.mouse.PressedIn(a)
-		s.down = s.active && t.mouse.IsButton1Down()
-		s.over = s.active && s.over
-	}
-	return s
+	return t.scr.Size()
 }
 
 func (t *ImTui) fillText(text string, s tcell.Style) {
 	for _, r := range text {
-		t.scrn.SetContent(t.cur.x, t.cur.y, r, nil, s)
+		t.scr.SetContent(t.cur.x, t.cur.y, r, nil, s)
 		t.cur.x++
 	}
 }
@@ -241,7 +224,7 @@ func (t *ImTui) fillText(text string, s tcell.Style) {
 func (t *ImTui) fill(a area, s tcell.Style) {
 	for y := a.y1; y < a.y2; y++ {
 		for x := a.x1; x < a.x2; x++ {
-			t.scrn.SetContent(x, y, ' ', nil, s)
+			t.scr.SetContent(x, y, ' ', nil, s)
 		}
 	}
 }
@@ -256,7 +239,8 @@ type cursor struct {
 
 type mouse struct {
 	x, y    delta[int]
-	pressed delta[tcell.ButtonMask]
+	pressed delta[tcell.ButtonMask] // Button pressed state.
+	active  delta[int]              // Active widget ID.
 
 	down cursor // Position where the mouse was pressed down.
 }
@@ -267,6 +251,33 @@ func (m *mouse) Update(x, y int, pressed tcell.ButtonMask) {
 	if m.IsButton1DownOnce() {
 		m.down = cursor{x, y}
 	}
+}
+
+func (m *mouse) Swap() {
+	m.x.Swap()
+	m.y.Swap()
+	m.pressed.Swap()
+	m.active.Swap()
+}
+
+func (m *mouse) State(id string, a area) mouseState {
+	var s mouseState
+	if over := m.In(a); over {
+		s.active = m.IsActiveWidget(id)
+		s.clicked = s.active && m.PressedIn(a)
+		s.down = s.active && m.IsButton1Down()
+		s.over = s.active && over
+	}
+	return s
+}
+
+// IsActiveWidget tells if the widget with the given id is the active one.
+// A widget is active if the last active widget is the same as the current
+// one. Since widgets can overlap this makes sure that the top-most one is
+// the active one.
+func (m *mouse) IsActiveWidget(id string) bool {
+	m.active.curr = strID(id)
+	return !m.active.Changed()
 }
 
 // Entered tells if the mouse entered the area.
@@ -330,18 +341,13 @@ func (a area) Contains(x, y int) bool {
 	return x >= a.x1 && x <= a.x2 && y >= a.y1 && y <= a.y2
 }
 
-// type dragdrop struct {
-// 	down, up cursor
-// }
-
 // delta represents a value that may change in each frame.
 type delta[T comparable] struct {
 	curr T
 	last T
 }
 
-// Changed tells if the delta value changed.
-// In case of a change returns true in a single frame.
+// Changed tells if the delta value changed in a single frame.
 func (d delta[T]) Changed() bool {
 	return d.curr != d.last
 }
@@ -351,7 +357,7 @@ func (d *delta[T]) Swap() {
 	d.last = d.curr
 }
 
-type mouseStates struct {
+type mouseState struct {
 	clicked bool
 	active  bool
 	over    bool
