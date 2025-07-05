@@ -123,7 +123,7 @@ func (t *ImTui) Toggle(label string, toggle *bool) bool {
 // The toggle is a boolean pointer that will be toggled when the checkbox is clicked.
 // Returns true if the checkbox was clicked.
 func (t *ImTui) Check(label string, toggle *bool) bool {
-	return t.Toggler("[X] ", "[ ] ", label, toggle)
+	return t.Toggler("[ ] ", "[X] ", label, toggle)
 }
 
 // Radio creates a radio button with the given label.
@@ -132,7 +132,7 @@ func (t *ImTui) Check(label string, toggle *bool) bool {
 // Returns true if the radio button was clicked.
 func (t *ImTui) Radio(label string, id int, radio *int) bool {
 	toggle := *radio == id
-	if t.Toggler("(0) ", "( ) ", label, &toggle) {
+	if t.Toggler("( ) ", "(0) ", label, &toggle) {
 		if toggle {
 			*radio = id
 		} else {
@@ -152,9 +152,9 @@ func (t *ImTui) Text(text string) bool {
 }
 
 // Toggler creates a toggle button that allows further customization.
-func (t *ImTui) Toggler(on, off, label string, toggle *bool) bool {
+func (t *ImTui) Toggler(off, on, label string, toggle *bool) bool {
 	a := t.textArea(label)
-	a.x2 += len(on)
+	a.x2 += len(off)
 	s := t.mouseStates(label, a)
 	if s.clicked {
 		*toggle = !*toggle
