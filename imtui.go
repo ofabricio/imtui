@@ -9,15 +9,15 @@ import (
 	"github.com/gdamore/tcell/v2"
 )
 
-func New() *ImTui {
+func New() ImTui {
 	var t ImTui
-	t.Style.Text = tcell.StyleDefault.Background(tcell.NewHexColor(0x23272e)).Foreground(tcell.NewHexColor(0xf5f6fa))
-	t.Style.Background = tcell.StyleDefault.Background(tcell.NewHexColor(0x23272e)).Foreground(tcell.NewHexColor(0xf5f6fa))
-	t.Style.PrimaryAccent = tcell.StyleDefault.Background(tcell.NewHexColor(0x1abc9c)).Foreground(tcell.NewHexColor(0x23272e))
-	t.Style.PrimaryAccentLight = tcell.StyleDefault.Background(tcell.NewHexColor(0x48dbb4)).Foreground(tcell.NewHexColor(0x23272e))
-	t.Style.SecondaryAccent = tcell.StyleDefault.Background(tcell.NewHexColor(0x34495e)).Foreground(tcell.NewHexColor(0xf5f6fa))
-	t.Style.SecondaryAccentLight = tcell.StyleDefault.Background(tcell.NewHexColor(0x2d3a4d)).Foreground(tcell.NewHexColor(0x1abc9c))
-	return &t
+	t.Style.Text = tcell.StyleDefault.Background(tcell.NewHexColor(0x181818)).Foreground(tcell.NewHexColor(0xffffff))
+	t.Style.Background = tcell.StyleDefault.Background(tcell.NewHexColor(0x181818)).Foreground(tcell.NewHexColor(0xffffff))
+	t.Style.Active = tcell.StyleDefault.Background(tcell.NewHexColor(0x264f78)).Foreground(tcell.NewHexColor(0xffffff))
+	t.Style.OverActive = tcell.StyleDefault.Background(tcell.NewHexColor(0x1565c0)).Foreground(tcell.NewHexColor(0xffffff))
+	t.Style.Over = tcell.StyleDefault.Background(tcell.NewHexColor(0x1976d2)).Foreground(tcell.NewHexColor(0xffffff))
+	t.Style.Normal = tcell.StyleDefault.Background(tcell.NewHexColor(0x23272e)).Foreground(tcell.NewHexColor(0xffffff))
+	return t
 }
 
 type ImTui struct {
@@ -31,12 +31,12 @@ type ImTui struct {
 }
 
 type styles struct {
-	Text                 tcell.Style
-	Background           tcell.Style
-	PrimaryAccent        tcell.Style
-	PrimaryAccentLight   tcell.Style
-	SecondaryAccent      tcell.Style
-	SecondaryAccentLight tcell.Style
+	Text       tcell.Style
+	Background tcell.Style
+	Normal     tcell.Style
+	Active     tcell.Style
+	Over       tcell.Style
+	OverActive tcell.Style
 }
 
 func (t *ImTui) Loop() iter.Seq[int] {
@@ -176,22 +176,24 @@ func (t *ImTui) textArea(text string) area {
 func (t *ImTui) buttonStyle(s mouseStates) tcell.Style {
 	switch {
 	case s.down:
-		return t.Style.PrimaryAccentLight
+		return t.Style.Active
 	case s.over:
-		return t.Style.PrimaryAccent
+		return t.Style.Over
 	default:
-		return t.Style.SecondaryAccentLight
+		return t.Style.Normal
 	}
 }
 
 func (t *ImTui) toggleStyle(s mouseStates, toggled bool) tcell.Style {
 	switch {
-	case s.down && !toggled || !s.down && toggled && s.over:
-		return t.Style.PrimaryAccentLight
-	case s.down && toggled || s.over || toggled:
-		return t.Style.PrimaryAccent
+	case s.down || toggled && !s.over:
+		return t.Style.Active
+	case toggled && s.over:
+		return t.Style.OverActive
+	case s.over:
+		return t.Style.Over
 	default:
-		return t.Style.SecondaryAccentLight
+		return t.Style.Normal
 	}
 }
 

@@ -25,7 +25,13 @@ func main() {
 }
 ```
 
-![Output](/.github/output.png)
+## Demo
+
+This demo is from the example in [example/example.go](example/demo.go).
+
+<p align="center">
+  <img src="/.github/demo.gif" />
+</p>
 
 ## Documentation
 
